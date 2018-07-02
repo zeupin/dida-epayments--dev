@@ -87,16 +87,17 @@ class SmartPay
         // 检查必填项
         $missing = [];
         foreach ($fields as $key => $rule) {
-            if ($rule[0] == true && array_key_exists($key, $temp)) {
+            if ($rule[0] == true && !array_key_exists($key, $temp)) {
                 $missing[] = $key;
             }
         }
         if ($missing) {
-            return [1, "缺少必填项" . implode(',', $missing)];
+            return [1, "缺少必填项" . implode(',', $missing), null];
         }
 
         // 生成查询串
         $querystring = $this->makeSignedQueryString($temp);
+        \Dida\Log\Log::write($querystring);
 
         // 联机提交
         $curl = new \Dida\CURL\CURL();
@@ -114,12 +115,13 @@ class SmartPay
 
         // 将返回的json解析为数组
         $data = json_decode($json, true);
+        \Dida\Log\Log::write($data);
         if ($data === null) {
             return [3, "createMiniAppPay收到非法应答", null];
         }
 
         // 如果code=0，正确
-        if ($data['code'] == 0) {
+        if ($data['code'] === 0) {
             return [0, null, $data];
         } else {
             return [4, "createMiniAppPay拒绝:{$data['message']}", $data];

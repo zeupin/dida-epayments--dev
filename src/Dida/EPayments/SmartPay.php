@@ -51,39 +51,6 @@ class SmartPay
 
 
     /**
-     * 跳转聚合支付接口
-     */
-    public function createSmartPay(array $input)
-    {
-        // 字段列表
-        $fields = [
-            'merchant_id'      => [true, '商户ID'],
-            'increment_id'     => [true, '订单号'],
-            'grandtotal'       => [true, '订单金额'],
-            'currency'         => [true, '币种'],
-            'return_url'       => [true, '返回链接'],
-            'notify_url'       => [true, '通知链接'],
-            'valid_mins'       => [false, '有效分钟'],
-            'payment_channels' => [false, '支付通道'],
-            'subject'          => [true, '交易标题'],
-            'describe'         => [true, '交易描述'],
-            'service'          => [true, '请求服务'],
-            'nonce_str'        => [true, '随机字符串'],
-        ];
-
-        // 预置字段
-        $presets = [
-            'merchant_id' => $this->merchant_id,
-            'service'     => 'create_smart_pay',
-            'nonce_str'   => $this->randomString(16),
-        ];
-
-        // 生成临时数组
-        $temp = array_merge($input, $presets);
-    }
-
-
-    /**
      * 聚合小程序支付接口
      *
      * @param array $input
@@ -116,6 +83,47 @@ class SmartPay
 
         // 生成临时数组
         $temp = array_merge($input, $presets);
+
+        // 检查必填项
+        $missing = [];
+        foreach ($fields as $key => $rule) {
+            if ($rule[0] == true && array_key_exists($key, $temp)) {
+                $missing[] = $key;
+            }
+        }
+        if ($missing) {
+            return [1, "缺少必填项" . implode(',', $missing)];
+        }
+
+        // 生成查询串
+        $querystring = $this->makeSignedQueryString($temp);
+
+        // 联机提交
+        $curl = new \Dida\CURL\CURL();
+        $result = $curl->request([
+            'url'    => self::$api_url,
+            'method' => 'GET',
+            'query'  => $querystring
+        ]);
+        list($code, $msg, $json) = $result;
+
+        // 如果提交过程有错
+        if ($code !== 0) {
+            return [2, "createMiniAppPay申请失败", null];
+        }
+
+        // 将返回的json解析为数组
+        $data = json_decode($json, true);
+        if ($data === null) {
+            return [3, "createMiniAppPay收到非法应答", null];
+        }
+
+        // 如果code=0，正确
+        if ($data['code'] == 0) {
+            return [0, null, $data];
+        } else {
+            return [4, "createMiniAppPay拒绝:{$data['message']}", $data];
+        }
     }
 
 
